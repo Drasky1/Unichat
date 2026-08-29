@@ -1,0 +1,22 @@
+<svg width="480" height="120" viewBox="0 0 480 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Unichat Official Primary Brand Mark Lockup -->
+  <g transform="translate(10, 10)">
+    <!-- Icon Container Squircle -->
+    <rect width="100" height="100" rx="28" fill="#2563EB"/>
+    
+    <!-- Bold Geometric U -->
+    <path d="M20 38V58C20 74.5685 33.4315 88 50 88C66.5685 88 80 74.5685 80 58V38H62V58C62 64.6274 56.6274 70 50 70C43.3726 70 38 64.6274 38 58V38H20Z" fill="#FFFFFF"/>
+    
+    <!-- 4-Pointed Precision Academic Star -->
+    <path d="M50 8L54.8 24.5L68 30L54.8 35.5L50 52L45.2 35.5L32 30L45.2 24.5L50 8Z" fill="#FFFFFF"/>
+  </g>
+  
+  <!-- Typography Lockup -->
+  <text x="135" y="74" font-family="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif" font-size="52" font-weight="900" letter-spacing="-1.5" fill="#F8FAFC">Unichat</text>
+  
+  <!-- OS Badge -->
+  <rect x="358" y="44" width="44" height="24" rx="6" fill="#2563EB" fill-opacity="0.16" stroke="#2563EB" stroke-opacity="0.4"/>
+  <text x="380" y="60.5" font-family="'Plus Jakarta Sans', sans-serif" font-size="13" font-weight="800" letter-spacing="0.5" fill="#3B82F6" text-anchor="middle">OS</text>
+  
+  <text x="137" y="98" font-family="'Plus Jakarta Sans', sans-serif" font-size="14" font-weight="600" letter-spacing="1" fill="#94A3B8" text-transform="uppercase">The Campus Operating System</text>
+</svg>
