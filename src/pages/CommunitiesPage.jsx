@@ -24,7 +24,12 @@ import { sounds } from '../utils/audio';
 
 export default function CommunitiesPage() {
   const { user, recordActivity, addModerationReport } = useApp();
-  const [activeCommunity, setActiveCommunity] = useState(COMMUNITIES[1] || COMMUNITIES[0]);
+  
+  // Get communities for user's university on first load
+  const userCommunities = COMMUNITIES.filter(c => !c.university || c.university === user.university);
+  const defaultCommunity = userCommunities.length > 0 ? userCommunities[0] : COMMUNITIES[0];
+  
+  const [activeCommunity, setActiveCommunity] = useState(defaultCommunity);
   const [messagesMap, setMessagesMap] = useState(COMMUNITY_MESSAGES);
   const [inputVal, setInputVal] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,7 +209,7 @@ export default function CommunitiesPage() {
     }
   };
 
-  const filteredCommunities = COMMUNITIES.filter(c =>
+  const filteredCommunities = userCommunities.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.desc.toLowerCase().includes(searchQuery.toLowerCase())
   );
