@@ -1,7 +1,30 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { CURRENT_USER } from '../data/mockData';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const AppContext = createContext(null);
+const MEANINGFUL_ACTIONS = new Set([
+  'community_post',
+  'project_update',
+  'friend_connect',
+  'grade_check',
+  'moderation_review',
+]);
+
+function normalizeReport(row) {
+  return {
+    id: row.id,
+    reason: row.reason,
+    communityName: row.community_name,
+    messageAuthor: row.message_author,
+    messageText: row.message_text,
+    severity: row.severity,
+    source: row.source,
+    status: row.status,
+    resolution: row.resolution,
+    createdAt: row.created_at,
+  };
+}
 
 function getInitialTheme() {
   const savedTheme = localStorage.getItem('campus-theme');
@@ -13,6 +36,7 @@ function getInitialTheme() {
 export function AppProvider({ children }) {
   const [user, setUser] = useState(CURRENT_USER);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
   const [theme, setTheme] = useState(getInitialTheme);
   const [moderationReports, setModerationReports] = useState([]);
 
@@ -22,15 +46,57 @@ export function AppProvider({ children }) {
     localStorage.setItem('campus-theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setAuthLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        if (!cancelled) setAuthLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (cancelled) return;
+      if (profile) {
+        setUser(profile);
+        setIsLoggedIn(true);
+      }
+      setAuthLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setIsLoggedIn(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
+
   const login = (userData) => {
     setUser(userData);
     setIsLoggedIn(true);
   };
 
-  const recordActivity = () => {
+  const recordActivity = (action = 'campus_engagement') => {
+    if (!MEANINGFUL_ACTIONS.has(action)) return;
+
     const today = new Date().toISOString().slice(0, 10);
     setUser(previousUser => {
-      if (previousUser.lastActiveDate === today) return previousUser;
+      if (!previousUser || previousUser.lastActiveDate === today) return previousUser;
 
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -57,23 +123,94 @@ export function AppProvider({ children }) {
     return restored;
   };
 
-  const addModerationReport = (report) => {
+  useEffect(() => {
+    if (!isSupabaseConfigured || !isLoggedIn || user.role !== 'moderator') return;
+
+    let cancelled = false;
+
+    supabase
+      .from('moderation_reports')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled && data) setModerationReports(data.map(normalizeReport));
+      });
+
+    const channel = supabase
+      .channel('moderation_reports_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'moderation_reports' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setModerationReports(previous => [normalizeReport(payload.new), ...previous]);
+        } else if (payload.eventType === 'UPDATE') {
+          setModerationReports(previous => previous.map(r => (r.id === payload.new.id ? normalizeReport(payload.new) : r)));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [isLoggedIn, user.role]);
+
+  const addModerationReport = async (report) => {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('moderation_reports')
+        .insert({
+          message_id: report.messageId,
+          community_id: report.communityId,
+          community_name: report.communityName,
+          message_author: report.messageAuthor,
+          message_text: report.messageText,
+          severity: report.severity,
+          reason: report.reason,
+          source: report.source,
+          reported_by: user.id,
+          university: user.university,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setModerationReports(previousReports => [normalizeReport(data), ...previousReports]);
+      }
+      return;
+    }
+
     setModerationReports(previousReports => [
       { ...report, id: `report-${Date.now()}`, status: 'open', createdAt: new Date().toISOString() },
       ...previousReports,
     ]);
   };
 
-  const resolveModerationReport = (reportId, resolution) => {
+  const resolveModerationReport = async (reportId, resolution) => {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('moderation_reports')
+        .update({ status: 'resolved', resolution })
+        .eq('id', reportId);
+
+      if (!error) {
+        setModerationReports(previousReports => previousReports.map(report => (
+          report.id === reportId ? { ...report, status: 'resolved', resolution } : report
+        )));
+      }
+      return;
+    }
+
     setModerationReports(previousReports => previousReports.map(report => (
       report.id === reportId ? { ...report, status: 'resolved', resolution } : report
     )));
   };
 
-  const logout = () => setIsLoggedIn(false);
+  const logout = () => {
+    if (isSupabaseConfigured) supabase.auth.signOut();
+    setIsLoggedIn(false);
+  };
 
   return (
-    <AppContext.Provider value={{ user, setUser, isLoggedIn, login, logout, recordActivity, restoreStreak, moderationReports, addModerationReport, resolveModerationReport, theme, setTheme }}>
+    <AppContext.Provider value={{ user, setUser, isLoggedIn, authLoading, login, logout, recordActivity, restoreStreak, moderationReports, addModerationReport, resolveModerationReport, theme, setTheme }}>
       {children}
     </AppContext.Provider>
   );

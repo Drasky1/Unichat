@@ -79,7 +79,7 @@ export default function CommunitiesPage() {
     if (!isRecording) return;
     const durationStr = `0:0${Math.max(1, recordSeconds)}`;
     setIsRecording(false);
-    recordActivity();
+    recordActivity('community_post');
     sounds.playSend();
 
     const newVoiceMsg = {

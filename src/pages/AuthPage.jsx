@@ -8,14 +8,17 @@ import {
   Lock,
   Mail,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import UnichatLogo from '../components/UnichatLogo';
 import { CURRENT_USER, MODERATOR_USER, UNIVERSITIES, UNIVERSITY_MAJOR_MAP, AVATAR_OPTIONS } from '../data/mockData';
+import { supabase, isSupabaseConfigured, emailMatchesUniversity, UNIVERSITY_EMAIL_DOMAINS } from '../lib/supabaseClient';
 
 export default function AuthPage() {
   const [tab, setTab] = useState('login');
   const [selectedAvatarIdx, setSelectedAvatarIdx] = useState(0);
+  const [loginForm, setLoginForm] = useState({ email: 'alex.riv@rsu.ac.th', password: '' });
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -24,14 +27,48 @@ export default function AuthPage() {
     university: UNIVERSITIES[0] || 'Rangsit University (RSU)',
     year: '3rd Year',
   });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useApp();
   const navigate = useNavigate();
 
   const availableMajors = form.university ? UNIVERSITY_MAJOR_MAP[form.university] || [] : [];
+  const requiredDomain = UNIVERSITY_EMAIL_DOMAINS[form.university];
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    login(CURRENT_USER);
+    setError('');
+
+    if (!isSupabaseConfigured) {
+      login(CURRENT_USER);
+      navigate('/');
+      return;
+    }
+
+    setSubmitting(true);
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: loginForm.email.trim(),
+      password: loginForm.password,
+    });
+    setSubmitting(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError) {
+      setError('Signed in, but could not load your profile. Please try again.');
+      return;
+    }
+
+    login(profile);
     navigate('/');
   };
 
@@ -40,26 +77,76 @@ export default function AuthPage() {
     navigate('/');
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    const newUser = {
-      ...CURRENT_USER,
-      name: form.name || 'Alex Rivera',
-      email: form.email || 'alex.riv@rsu.ac.th',
-      major: form.major || availableMajors[0] || 'Computer Science & AI',
-      university: form.university,
-      year: form.year,
-      avatar: AVATAR_OPTIONS[selectedAvatarIdx] || CURRENT_USER.avatar,
-    };
-    login(newUser);
+    setError('');
+
+    if (!isSupabaseConfigured) {
+      const newUser = {
+        ...CURRENT_USER,
+        name: form.name || 'Alex Rivera',
+        email: form.email || 'alex.riv@rsu.ac.th',
+        major: form.major || availableMajors[0] || 'Computer Science & AI',
+        university: form.university,
+        year: form.year,
+        avatar: AVATAR_OPTIONS[selectedAvatarIdx] || CURRENT_USER.avatar,
+      };
+      login(newUser);
+      navigate('/');
+      return;
+    }
+
+    if (!emailMatchesUniversity(form.email, form.university)) {
+      setError(`Please use your ${form.university} student email (must end in @${requiredDomain}).`);
+      return;
+    }
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    setSubmitting(true);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: form.email.trim(),
+      password: form.password,
+    });
+
+    if (signUpError) {
+      setSubmitting(false);
+      setError(signUpError.message);
+      return;
+    }
+
+    const avatar = AVATAR_OPTIONS[selectedAvatarIdx] || CURRENT_USER.avatar;
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        name: form.name,
+        email: form.email.trim(),
+        university: form.university,
+        major: form.major || availableMajors[0] || '',
+        year: form.year,
+        avatar_image: avatar.image,
+        avatar_initials: avatar.initials,
+        avatar_gradient: avatar.gradient,
+      })
+      .select()
+      .single();
+    setSubmitting(false);
+
+    if (profileError) {
+      setError(profileError.message);
+      return;
+    }
+
+    login(profile);
     navigate('/');
   };
 
   return (
     <div className="auth-split-container fade-in">
-      {/* Left Branded Hero Side with Campus Visual */}
       <div className="auth-hero-side" style={{ position: 'relative', overflow: 'hidden' }}>
-        {/* Background Image with Dark Vignette Overlay */}
         <div
           style={{
             position: 'absolute',
@@ -108,7 +195,6 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* Right Form Side */}
       <div className="auth-form-side">
         <div className="auth-card-box">
           <div>
@@ -120,7 +206,6 @@ export default function AuthPage() {
             </p>
           </div>
 
-          {/* Auth Tab Switcher */}
           <div style={{ display: 'flex', background: 'var(--bg-input)', padding: 3, borderRadius: 'var(--radius-md)' }}>
             <button
               type="button"
@@ -138,6 +223,13 @@ export default function AuthPage() {
             </button>
           </div>
 
+          {error && (
+            <div className="alert alert-danger" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertCircle size={15} />
+              <span>{error}</span>
+            </div>
+          )}
+
           {tab === 'login' ? (
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="input-group">
@@ -148,7 +240,8 @@ export default function AuthPage() {
                     type="email"
                     style={{ paddingLeft: 34 }}
                     placeholder="student@university.ac.th"
-                    defaultValue="alex.riv@rsu.ac.th"
+                    value={loginForm.email}
+                    onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
                   />
                   <Mail size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-muted)' }} />
                 </div>
@@ -162,14 +255,15 @@ export default function AuthPage() {
                     type="password"
                     style={{ paddingLeft: 34 }}
                     placeholder="••••••••••••"
-                    defaultValue="password123"
+                    value={loginForm.password}
+                    onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
                   />
                   <Lock size={15} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-muted)' }} />
                 </div>
               </div>
 
-              <button type="submit" className="btn btn-primary btn-full" style={{ marginTop: 4 }}>
-                Continue to Dashboard <ArrowRight size={14} />
+              <button type="submit" className="btn btn-primary btn-full" style={{ marginTop: 4 }} disabled={submitting}>
+                {submitting ? 'Signing in...' : 'Continue to Dashboard'} <ArrowRight size={14} />
               </button>
 
               <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
@@ -192,6 +286,30 @@ export default function AuthPage() {
                   placeholder="e.g. Alex Rivera"
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">University Email</label>
+                <input
+                  className="input"
+                  type="email"
+                  required
+                  placeholder="student@university.ac.th"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Password</label>
+                <input
+                  className="input"
+                  type="password"
+                  required
+                  placeholder="At least 8 characters"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
                 />
               </div>
 
@@ -221,8 +339,8 @@ export default function AuthPage() {
                 </select>
               </div>
 
-              <button type="submit" className="btn btn-primary btn-full" style={{ marginTop: 6 }}>
-                Create Student Account <ArrowRight size={14} />
+              <button type="submit" className="btn btn-primary btn-full" disabled={submitting}>
+                {submitting ? 'Creating account...' : 'Create Student Account'} <ArrowRight size={14} />
               </button>
             </form>
           )}

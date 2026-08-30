@@ -32,7 +32,7 @@ export default function FindFriendsPage() {
     : ['All Majors', ...(UNIVERSITY_MAJOR_MAP[filterUniversity] || [])];
 
   const toggleFollow = (id) => {
-    recordActivity();
+    recordActivity('friend_connect');
     setStudents(prev => prev.map(s => s.id === id ? { ...s, following: !s.following } : s));
     if (selectedStudent?.id === id) {
       setSelectedStudent(prev => ({ ...prev, following: !prev.following }));
@@ -41,7 +41,7 @@ export default function FindFriendsPage() {
 
   const sendDM = () => {
     if (!dmInput.trim()) return;
-    recordActivity();
+    recordActivity('friend_connect');
     setDmSent(true);
     setDmInput('');
     setTimeout(() => setDmSent(false), 3000);

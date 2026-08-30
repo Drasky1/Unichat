@@ -44,7 +44,7 @@ export default function ProjectsPage() {
   }, [activeProject, activeTab]);
 
   const toggleTask = (taskId) => {
-    recordActivity();
+    recordActivity('project_update');
     sounds.playTaskCheck();
     setProjects(prev => prev.map(p => {
       if (p.id !== activeProject.id) return p;
@@ -57,7 +57,7 @@ export default function ProjectsPage() {
   const addTask = (e) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
-    recordActivity();
+    recordActivity('project_update');
     const createdTask = {
       id: `t${Date.now()}`,
       title: newTaskTitle.trim(),
@@ -78,7 +78,7 @@ export default function ProjectsPage() {
   const sendChat = () => {
     const text = chatInput.trim();
     if (!text) return;
-    recordActivity();
+    recordActivity('project_update');
     const newMsg = {
       id: `pm${Date.now()}`,
       userId: user.id || 'u1',
@@ -95,7 +95,7 @@ export default function ProjectsPage() {
 
   const createProject = (e) => {
     e.preventDefault();
-    recordActivity();
+    recordActivity('project_update');
     const created = {
       id: `p${Date.now()}`,
       name: newProject.name,
@@ -120,7 +120,7 @@ export default function ProjectsPage() {
     if (!memberToAdd || activeProject.members.some(m => m.id === memberToAdd)) return;
     const member = STUDENTS.find(s => s.id === memberToAdd);
     if (!member) return;
-    recordActivity();
+    recordActivity('project_update');
     const nextMembers = [...activeProject.members, { id: member.id, name: member.name, role: 'Contributor', avatar: member.avatar }];
     setProjects(prev => prev.map(p => p.id === activeProject.id ? { ...p, members: nextMembers } : p));
     setMemberToAdd('');
