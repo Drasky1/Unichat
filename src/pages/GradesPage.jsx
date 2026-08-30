@@ -149,7 +149,7 @@ export default function GradesPage() {
             {currentSubject.components.map((c, i) => {
               const contribution = c.scored !== null ? ((c.scored / c.total) * c.weight).toFixed(1) : '—';
               return (
-                <div key={i} className="assessment-row">
+                <div key={c.name} className="assessment-row">
                   <span style={{ fontWeight: 600 }}>{c.name}</span>
                   <span style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{c.weight}%</span>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>

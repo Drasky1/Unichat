@@ -6,14 +6,24 @@ import { COMMUNITIES, PROJECTS, STUDENTS } from '../data/mockData';
 export default function CommandPalette({ isOpen, onClose }) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const inputRef = useRef(null);
   const navigate = useNavigate();
+
+  // Reset the palette's local state when it transitions to open. Doing this
+  // during render (rather than in an effect) avoids an extra cascading
+  // render right after the palette opens.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setQuery('');
+      setSelectedIndex(0);
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
-      setQuery('');
-      setSelectedIndex(0);
     }
   }, [isOpen]);
 

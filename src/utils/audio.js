@@ -39,7 +39,7 @@ class SoundEngine {
 
       osc.start();
       osc.stop(this.ctx.currentTime + 0.09);
-    } catch (e) {
+    } catch {
       // Audio autoplay policy fallback
     }
   }
@@ -71,7 +71,7 @@ class SoundEngine {
       osc1.stop(now + 0.05);
       osc2.start(now + 0.05);
       osc2.stop(now + 0.15);
-    } catch (e) {
+    } catch {
       // Audio fallback
     }
   }
@@ -97,7 +97,7 @@ class SoundEngine {
 
       osc.start(now);
       osc.stop(now + 0.14);
-    } catch (e) {
+    } catch {
       // Audio fallback
     }
   }
@@ -125,7 +125,7 @@ class SoundEngine {
         osc.start(now);
         osc.stop(now + 0.25);
       });
-    } catch (e) {
+    } catch {
       // Audio fallback
     }
   }

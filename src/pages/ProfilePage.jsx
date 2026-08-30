@@ -122,9 +122,9 @@ export default function ProfilePage() {
           <div style={{ marginTop: 16, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
             <div className="input-label" style={{ marginBottom: 8 }}>Select Curated Student Portrait</div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {AVATAR_OPTIONS.map((av, i) => (
+              {AVATAR_OPTIONS.map((av) => (
                 <div
-                  key={i}
+                  key={av.image}
                   style={{ cursor: 'pointer', border: form.avatar?.image === av.image ? '2px solid var(--accent)' : '2px solid transparent', borderRadius: '50%', padding: 2 }}
                   onClick={() => setForm({ ...form, avatar: av })}
                 >

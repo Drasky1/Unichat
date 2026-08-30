@@ -53,7 +53,6 @@ export default function CommunitiesPage() {
   // Voice recording timer
   useEffect(() => {
     if (isRecording) {
-      setRecordSeconds(0);
       recordTimerRef.current = setInterval(() => {
         setRecordSeconds(s => s + 1);
       }, 1000);
@@ -67,6 +66,7 @@ export default function CommunitiesPage() {
 
   const startVoiceRecording = () => {
     sounds.init();
+    setRecordSeconds(0);
     setIsRecording(true);
   };
 
@@ -361,8 +361,8 @@ export default function CommunitiesPage() {
                   {/* Reactions */}
                   {msg.reactions && msg.reactions.length > 0 && (
                     <div className="chat-msg-reactions">
-                      {msg.reactions.map((r, i) => (
-                        <button key={i} className="reaction-pill" onClick={() => toggleReaction(msg.id, r.emoji)}>
+                      {msg.reactions.map((r) => (
+                        <button key={r.emoji} className="reaction-pill" onClick={() => toggleReaction(msg.id, r.emoji)}>
                           <span>{r.emoji}</span>
                           <span>{r.count}</span>
                         </button>
