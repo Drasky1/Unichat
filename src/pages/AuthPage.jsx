@@ -81,13 +81,15 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
 
+    const normalizedUniversity = form.university.trim();
+
     if (!isSupabaseConfigured) {
       const newUser = {
         ...CURRENT_USER,
         name: form.name || 'Alex Rivera',
         email: form.email || 'alex.riv@rsu.ac.th',
         major: form.major || availableMajors[0] || 'Computer Science & AI',
-        university: form.university,
+        university: normalizedUniversity,
         year: form.year,
         avatar: AVATAR_OPTIONS[selectedAvatarIdx] || CURRENT_USER.avatar,
       };
@@ -96,8 +98,8 @@ export default function AuthPage() {
       return;
     }
 
-    if (!emailMatchesUniversity(form.email, form.university)) {
-      setError(`Please use your ${form.university} student email (must end in @${requiredDomain}).`);
+    if (!emailMatchesUniversity(form.email, normalizedUniversity)) {
+      setError(`Please use your ${normalizedUniversity} student email (must end in @${requiredDomain}).`);
       return;
     }
     if (form.password.length < 8) {
@@ -124,7 +126,7 @@ export default function AuthPage() {
         id: data.user.id,
         name: form.name,
         email: form.email.trim(),
-        university: form.university,
+        university: normalizedUniversity,
         major: form.major || availableMajors[0] || '',
         year: form.year,
         avatar_image: avatar.image,

@@ -6,13 +6,57 @@ create table if not exists university_domains (
   domain text not null unique
 );
 
+-- Use UPSERT so re-running this script never wipes data and fails halfway
 insert into university_domains (university, domain) values
-  ('Rangsit University (RSU)', 'rsu.ac.th'),
-  ('Bangkok University (BU)', 'bu.ac.th'),
-  ('Chulalongkorn University (CU)', 'chula.ac.th'),
-  ('Assumption University (ABAC)', 'au.edu'),
-  ('Mahidol University (MU / MUIC)', 'mahidol.ac.th')
+  ('Rangsit University (RSU)',          'rsu.ac.th'),
+  ('Bangkok University (BU)',           'bu.ac.th'),
+  ('Chulalongkorn University (CU)',     'chula.ac.th'),
+  ('Assumption University (ABAC)',      'au.edu'),
+  ('Mahidol University (MU / MUIC)',    'mahidol.ac.th'),
+  ('Thammasat University (TU)',         'tu.ac.th'),
+  ('Kasetsart University (KU)',         'ku.ac.th'),
+  ('KMITL',                             'kmitl.ac.th'),
+  ('Chiang Mai University (CMU)',       'cmu.ac.th'),
+  ('Mae Fah Luang University (MFU)',    'mfu.ac.th'),
+  ('UTCC',                              'utcc.ac.th'),
+  ('Stamford International University (STIU)', 'stamford.edu'),
+  ('Webster University Thailand',       'webster.ac.th')
 on conflict (university) do update set domain = excluded.domain;
+
+-- Simple, reliable email-domain trigger (no normalization complexity)
+create or replace function enforce_university_email()
+returns trigger as $$
+declare
+  required_domain text;
+begin
+  -- Direct exact lookup first
+  select domain into required_domain
+  from university_domains
+  where university = new.university;
+
+  -- Fallback: case-insensitive lookup in case of minor casing differences
+  if required_domain is null then
+    select domain into required_domain
+    from university_domains
+    where lower(trim(university)) = lower(trim(new.university));
+  end if;
+
+  if required_domain is null then
+    raise exception 'Unknown university: %. Make sure it matches exactly one of the registered universities.', new.university;
+  end if;
+
+  if new.email !~* ('@' || required_domain || '$') then
+    raise exception 'Email % does not match the required domain (@%) for %', new.email, required_domain, new.university;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_enforce_university_email on profiles;
+create trigger trg_enforce_university_email
+  before insert or update on profiles
+  for each row execute function enforce_university_email();
 
 create table if not exists profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -36,16 +80,20 @@ create table if not exists profiles (
   restore_month text,
   verified boolean not null default false,
   created_at timestamptz not null default now()
+
 );
 
 create or replace function enforce_university_email()
 returns trigger as $$
 declare
   required_domain text;
+  normalized_university text;
 begin
+  normalized_university := normalize_university_name(new.university);
+
   select domain into required_domain
   from university_domains
-  where university = new.university;
+  where normalize_university_name(university) = normalized_university;
 
   if required_domain is null then
     raise exception 'Unknown university: %', new.university;
@@ -55,6 +103,7 @@ begin
     raise exception 'Email % does not match the required domain (@%) for %', new.email, required_domain, new.university;
   end if;
 
+  new.university := (select university from university_domains where normalize_university_name(university) = normalized_university limit 1);
   return new;
 end;
 $$ language plpgsql;
