@@ -80,38 +80,7 @@ create table if not exists profiles (
   restore_month text,
   verified boolean not null default false,
   created_at timestamptz not null default now()
-
 );
-
-create or replace function enforce_university_email()
-returns trigger as $$
-declare
-  required_domain text;
-  normalized_university text;
-begin
-  normalized_university := normalize_university_name(new.university);
-
-  select domain into required_domain
-  from university_domains
-  where normalize_university_name(university) = normalized_university;
-
-  if required_domain is null then
-    raise exception 'Unknown university: %', new.university;
-  end if;
-
-  if new.email !~* ('@' || required_domain || '$') then
-    raise exception 'Email % does not match the required domain (@%) for %', new.email, required_domain, new.university;
-  end if;
-
-  new.university := (select university from university_domains where normalize_university_name(university) = normalized_university limit 1);
-  return new;
-end;
-$$ language plpgsql;
-
-drop trigger if exists trg_enforce_university_email on profiles;
-create trigger trg_enforce_university_email
-  before insert or update on profiles
-  for each row execute function enforce_university_email();
 
 alter table profiles enable row level security;
 
