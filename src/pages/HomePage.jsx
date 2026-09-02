@@ -235,7 +235,7 @@ export default function HomePage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ fontSize: '13.5px', fontWeight: 800 }}>Peers in your Faculty</div>
               <button className="btn btn-ghost btn-xs" onClick={() => navigate('/friends')}>
-                Directory <ArrowRight size={12} />
+                Friends <ArrowRight size={12} />
               </button>
             </div>
 

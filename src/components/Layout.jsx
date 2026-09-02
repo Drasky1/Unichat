@@ -27,9 +27,9 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const NAV_ITEMS = [
   { to: '/',            icon: LayoutDashboard, label: 'Campus Feed' },
-  { to: '/communities', icon: MessagesSquare,  label: 'Communities', badge: 3 },
-  { to: '/friends',     icon: Users2,          label: 'Directory' },
-  { to: '/projects',    icon: FolderKanban,    label: 'Projects', badge: 2 },
+  { to: '/communities', icon: MessagesSquare,  label: 'Communities' },
+  { to: '/friends',     icon: Users2,          label: 'Friends' },
+  { to: '/projects',    icon: FolderKanban,    label: 'Projects' },
   { to: '/grades',      icon: GraduationCap,   label: 'Grade Simulator' },
   { to: '/profile',     icon: User,            label: 'Profile & Settings' },
 ];
@@ -68,7 +68,7 @@ export default function Layout({ children }) {
     const p = location.pathname;
     if (p === '/') return 'Campus Feed';
     if (p.startsWith('/communities')) return 'Channels & Communities';
-    if (p.startsWith('/friends')) return 'Student Directory';
+    if (p.startsWith('/friends')) return 'Friends';
     if (p.startsWith('/projects')) return 'Group Workspaces';
     if (p.startsWith('/grades')) return 'Grade Simulator & GPA';
     if (p.startsWith('/profile')) return 'Profile & Settings';

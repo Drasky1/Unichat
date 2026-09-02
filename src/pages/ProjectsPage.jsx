@@ -365,7 +365,7 @@ export default function ProjectsPage() {
                   <div className="input-label">Invite Peer to Workspace</div>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <select className="input" value={memberToAdd} onChange={e => setMemberToAdd(e.target.value)}>
-                      <option value="">Select student from directory</option>
+                      <option value="">Select student from friends</option>
                       {STUDENTS.filter(s => !activeProject.members.some(m => m.id === s.id)).map(s => (
                         <option key={s.id} value={s.id}>{s.name} ({s.major})</option>
                       ))}

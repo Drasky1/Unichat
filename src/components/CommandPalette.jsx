@@ -49,7 +49,7 @@ export default function CommandPalette({ isOpen, onClose }) {
   const navigationItems = [
     { type: 'Page', title: 'Home Dashboard', subtitle: 'Campus pulse & daily highlights', path: '/', icon: GraduationCap },
     { type: 'Page', title: 'Communities & Chat', subtitle: 'Official channels & study pods', path: '/communities', icon: Hash },
-    { type: 'Page', title: 'Student Directory', subtitle: 'Find peers, study partners & faculty', path: '/friends', icon: Users },
+    { type: 'Page', title: 'Friends', subtitle: 'Find peers, study partners & faculty', path: '/friends', icon: Users },
     { type: 'Page', title: 'Group Projects', subtitle: 'Task tracking & team workspaces', path: '/projects', icon: FolderKanban },
     { type: 'Page', title: 'Grade Simulator', subtitle: 'GPA calculator & assessment forecaster', path: '/grades', icon: GraduationCap },
   ];
