@@ -45,7 +45,9 @@ export default function FindFriendsPage() {
   const [filterMajor, setFilterMajor] = useState('All Majors');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [dmInput, setDmInput] = useState('');
-  const [dmSent, setDmSent] = useState(false);
+  const [dmMessages, setDmMessages] = useState([]);
+  const [dmLoading, setDmLoading] = useState(false);
+  const [dmSending, setDmSending] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -88,12 +90,44 @@ export default function FindFriendsPage() {
     }
   };
 
-  const sendDM = () => {
-    if (!dmInput.trim()) return;
+  useEffect(() => {
+    if (!isSupabaseConfigured || !selectedStudent) return;
+
+    let cancelled = false;
+    setDmLoading(true);
+    supabase
+      .from('direct_messages')
+      .select('*')
+      .or(`and(sender_id.eq.${user.id},recipient_id.eq.${selectedStudent.id}),and(sender_id.eq.${selectedStudent.id},recipient_id.eq.${user.id})`)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setDmMessages(data || []);
+        setDmLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedStudent?.id, user.id]);
+
+  const sendDM = async () => {
+    const body = dmInput.trim();
+    if (!body || !selectedStudent) return;
     recordActivity('friend_connect');
-    setDmSent(true);
     setDmInput('');
-    setTimeout(() => setDmSent(false), 3000);
+
+    if (!isSupabaseConfigured) {
+      setDmMessages(prev => [...prev, { id: `dm-${Date.now()}`, sender_id: user.id, recipient_id: selectedStudent.id, body, created_at: new Date().toISOString() }]);
+      return;
+    }
+
+    setDmSending(true);
+    const { data, error } = await supabase
+      .from('direct_messages')
+      .insert({ sender_id: user.id, recipient_id: selectedStudent.id, body })
+      .select()
+      .single();
+    setDmSending(false);
+    if (!error && data) setDmMessages(prev => [...prev, data]);
   };
 
   const filtered = students.filter(s => {
@@ -278,29 +312,27 @@ export default function FindFriendsPage() {
             {/* Direct Message Form */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
               <div className="input-label">Send Direct Message</div>
-              {dmSent ? (
-                <div className="badge badge-emerald" style={{ padding: '8px 12px', width: '100%', justifyContent: 'center' }}>
-                  ✓ Direct message sent to {selectedStudent.name}!
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    className="input"
-                    placeholder={`Hey ${selectedStudent.name.split(' ')[0]}, let's collaborate on...`}
-                    value={dmInput}
-                    onChange={e => setDmInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') sendDM(); }}
-                  />
-                  <button className="btn btn-primary btn-sm" onClick={sendDM} disabled={!dmInput.trim()}>
-                    <Send size={13} /> Send
-                  </button>
-                </div>
-              )}
-              {!dmSent && (
-                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 6 }}>
-                  Direct messages aren&apos;t saved yet — this feature is coming soon.
-                </div>
-              )}
+              <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                {dmLoading && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Loading conversation...</span>}
+                {!dmLoading && dmMessages.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No messages yet.</span>}
+                {dmMessages.map(message => (
+                  <div key={message.id} style={{ alignSelf: message.sender_id === user.id ? 'flex-end' : 'flex-start', maxWidth: '85%', padding: '6px 9px', borderRadius: 'var(--radius-sm)', background: message.sender_id === user.id ? 'var(--accent-subtle)' : 'var(--bg-surface)', fontSize: 12 }}>
+                    {message.body}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="input"
+                  placeholder={`Message ${selectedStudent.name.split(' ')[0]}...`}
+                  value={dmInput}
+                  onChange={e => setDmInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') sendDM(); }}
+                />
+                <button className="btn btn-primary btn-sm" onClick={sendDM} disabled={!dmInput.trim() || dmSending}>
+                  <Send size={13} /> {dmSending ? 'Sending...' : 'Send'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

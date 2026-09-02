@@ -292,6 +292,35 @@ create policy "Users can remove their own connections"
   on friendships for delete to authenticated
   using (follower_id = auth.uid());
 
+-- ── 8c. Direct messages ─────────────────────────────────────
+create table if not exists direct_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references profiles (id) on delete cascade,
+  recipient_id uuid not null references profiles (id) on delete cascade,
+  body text not null check (length(trim(body)) > 0),
+  created_at timestamptz not null default now(),
+  read_at timestamptz,
+  check (sender_id <> recipient_id)
+);
+
+alter table direct_messages enable row level security;
+
+drop policy if exists "Users can view their direct messages" on direct_messages;
+create policy "Users can view their direct messages"
+  on direct_messages for select to authenticated
+  using (sender_id = auth.uid() or recipient_id = auth.uid());
+
+drop policy if exists "Users can send direct messages as themselves" on direct_messages;
+create policy "Users can send direct messages as themselves"
+  on direct_messages for insert to authenticated
+  with check (sender_id = auth.uid());
+
+drop policy if exists "Recipients can mark direct messages read" on direct_messages;
+create policy "Recipients can mark direct messages read"
+  on direct_messages for update to authenticated
+  using (recipient_id = auth.uid())
+  with check (recipient_id = auth.uid());
+
 -- ── 9. Realtime subscriptions ────────────────────────────────
 do $$
 begin
