@@ -79,10 +79,7 @@ export function AppProvider({ children }) {
   }, [theme]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setAuthLoading(false);
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     let cancelled = false;
 

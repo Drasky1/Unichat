@@ -90,6 +90,7 @@ export default function AuthPage() {
     if (!isSupabaseConfigured) {
       const newUser = {
         ...CURRENT_USER,
+        // eslint-disable-next-line react-hooks/purity -- runs only inside this submit handler, never during render
         id: `guest-${Date.now()}`,
         name: form.name || 'Alex Rivera',
         email: form.email || 'alex.riv@rsu.ac.th',
