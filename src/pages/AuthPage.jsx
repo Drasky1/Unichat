@@ -77,6 +77,7 @@ export default function AuthPage() {
   };
 
   const handleModeratorLogin = () => {
+    if (isSupabaseConfigured) return;
     login(MODERATOR_USER);
     navigate('/');
   };
@@ -281,13 +282,15 @@ export default function AuthPage() {
 
               <div style={{ height: 1, background: 'var(--border)', margin: '8px 0' }} />
 
-              <button
-                type="button"
-                className="btn btn-secondary btn-full btn-sm"
-                onClick={handleModeratorLogin}
-              >
-                <ShieldCheck size={14} /> Enter as Faculty Moderator Demo
-              </button>
+              {!isSupabaseConfigured && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-full btn-sm"
+                  onClick={handleModeratorLogin}
+                >
+                  <ShieldCheck size={14} /> Enter as Faculty Moderator Demo
+                </button>
+              )}
             </form>
           ) : (
             <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

@@ -267,7 +267,7 @@ export default function CommunitiesPage() {
       return;
     }
 
-    recordActivity();
+    recordActivity('community_post');
     sounds.playSend();
     setInputVal('');
     setModerationNotice('');

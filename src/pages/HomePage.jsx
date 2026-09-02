@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   GraduationCap,
@@ -19,6 +19,16 @@ import {
 import { useApp } from '../context/AppContext';
 import Avatar from '../components/Avatar';
 import { COMMUNITIES, PROJECTS, STUDENTS } from '../data/mockData';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+
+function normalizePeer(row) {
+  return {
+    ...row,
+    major: row.major || 'Student',
+    avatar: { image: row.avatar_image, initials: row.avatar_initials, gradient: row.avatar_gradient },
+    online: row.last_active_date === new Date().toISOString().slice(0, 10),
+  };
+}
 
 function daysUntil(dateStr) {
   const diff = new Date(dateStr) - new Date();
@@ -29,10 +39,26 @@ function daysUntil(dateStr) {
 export default function HomePage() {
   const { user } = useApp();
   const navigate = useNavigate();
+  const [liveData, setLiveData] = useState({ communities: [], peers: [] });
 
-  const myProject = PROJECTS[0];
-  const activeChannels = COMMUNITIES.slice(0, 4);
-  const recommendedPeers = STUDENTS.filter(s => s.university === user.university || s.major === user.major).slice(0, 3);
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let cancelled = false;
+    Promise.all([
+      supabase.from('communities').select('*').order('name'),
+      supabase.from('profiles').select('*').neq('id', user.id).limit(3),
+    ]).then(([{ data: communities }, { data: peers }]) => {
+      if (!cancelled) setLiveData({ communities: communities || [], peers: (peers || []).map(normalizePeer) });
+    });
+
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  const activeChannels = isSupabaseConfigured ? liveData.communities : COMMUNITIES.slice(0, 4);
+  const recommendedPeers = isSupabaseConfigured ? liveData.peers : STUDENTS.filter(s => s.university === user.university || s.major === user.major).slice(0, 3);
+  const myProject = isSupabaseConfigured ? null : PROJECTS[0];
+  const activeWorkspaceCount = isSupabaseConfigured ? 0 : PROJECTS.length;
 
   return (
     <div className="fade-in">
@@ -56,7 +82,7 @@ export default function HomePage() {
             <FolderKanban size={22} />
           </div>
           <div className="metric-content">
-            <span className="metric-value">{PROJECTS.length}</span>
+            <span className="metric-value">{activeWorkspaceCount}</span>
             <span className="metric-label">Active Workspaces</span>
           </div>
         </div>
@@ -66,7 +92,7 @@ export default function HomePage() {
             <MessagesSquare size={22} />
           </div>
           <div className="metric-content">
-            <span className="metric-value">{COMMUNITIES.length}</span>
+            <span className="metric-value">{isSupabaseConfigured ? liveData.communities.length : COMMUNITIES.length}</span>
             <span className="metric-label">Campus Channels</span>
           </div>
         </div>
@@ -93,8 +119,9 @@ export default function HomePage() {
           </div>
           <h2>Welcome back, {user.name.split(' ')[0]}</h2>
           <p>
-            You have <strong>1 upcoming deadline</strong> this week in {myProject.subject}. 
-            Join the Computer Science study pod or coordinate with your project team.
+            {myProject
+              ? <>You have <strong>1 upcoming deadline</strong> this week in {myProject.subject}. Join the Computer Science study pod or coordinate with your project team.</>
+              : <>Your live campus space is ready. Join a community, meet other students, and start building your academic network.</>}
           </p>
         </div>
         <div className="hero-pulse-actions">
@@ -120,25 +147,25 @@ export default function HomePage() {
                   Upcoming Milestone
                 </span>
               </div>
-              <span className="badge badge-amber">{daysUntil(myProject.deadline)}</span>
+              {myProject && <span className="badge badge-amber">{daysUntil(myProject.deadline)}</span>}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: '16px', fontWeight: 800 }}>{myProject.name}</div>
-                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>{myProject.code} · {myProject.subject}</div>
+                <div style={{ fontSize: '16px', fontWeight: 800 }}>{myProject?.name || 'No active projects yet'}</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>{myProject ? `${myProject.code} · ${myProject.subject}` : 'Create or join a workspace to see project milestones here.'}</div>
               </div>
               <button className="btn btn-secondary btn-xs" onClick={() => navigate('/projects')}>
                 Manage <ArrowRight size={12} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {myProject && <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ flex: 1, height: 6, background: 'var(--bg-input)', borderRadius: '9999px', overflow: 'hidden' }}>
                 <div style={{ width: `${myProject.progress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--sky))', borderRadius: '9999px' }} />
               </div>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-light)' }}>{myProject.progress}% complete</span>
-            </div>
+            </div>}
           </div>
 
           {/* Active Campus Channels */}
@@ -175,11 +202,11 @@ export default function HomePage() {
                     </div>
                     <div>
                       <div style={{ fontSize: '13.5px', fontWeight: 700 }}>{c.name}</div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 2 }}>{c.desc}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: 2 }}>{c.desc || c.description}</div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="badge badge-emerald" style={{ fontSize: '10.5px' }}>● {c.online} online</span>
+                    <span className="badge badge-emerald" style={{ fontSize: '10.5px' }}>● live</span>
                   </div>
                 </div>
               ))}
