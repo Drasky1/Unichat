@@ -53,6 +53,10 @@ create table if not exists profiles (
   created_at       timestamptz not null default now()
 );
 
+-- Add profile fields when upgrading from the original schema.
+alter table profiles add column if not exists skills text[] not null default '{}';
+alter table profiles add column if not exists status_text text;
+
 -- ── 3. Trigger function (AFTER profiles table exists) ────────
 create or replace function enforce_university_email()
 returns trigger as $$
@@ -118,6 +122,13 @@ create table if not exists communities (
   verified    boolean not null default false,
   created_at  timestamptz not null default now()
 );
+
+-- Add columns for projects created by earlier schema versions.
+alter table communities add column if not exists category text;
+alter table communities add column if not exists icon text;
+alter table communities add column if not exists description text;
+alter table communities add column if not exists university text references university_domains (university);
+alter table communities add column if not exists verified boolean not null default false;
 
 alter table communities enable row level security;
 
