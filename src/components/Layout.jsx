@@ -232,7 +232,7 @@ export default function Layout({ children }) {
             {/* Live Campus Presence */}
             <div className="live-campus-pill">
               <span className="live-dot-pulse" />
-              <span className="live-text">{isSupabaseConfigured ? activeUserCount : 0} active today</span>
+              <span className="live-text">{isSupabaseConfigured ? activeUserCount : 0} active</span>
             </div>
 
             {/* Notifications Popover */}

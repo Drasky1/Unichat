@@ -135,6 +135,17 @@ delete from communities where id = 'c-rsu-announcements';
 insert into communities (id, name, category, icon, description, university, verified) values
   ('c-rsu-cs', 'Computer Science & AI Hub', 'faculty', 'Code2', 'Course discussion, homework help, hackathons, and research projects', 'Rangsit University (RSU)', true),
   ('c-bu-design', 'Digital Design & Media', 'faculty', 'Palette', 'Portfolio critiques, Figma components, 3D renders, and creative gigs', 'Bangkok University (BU)', true),
+  ('c-cu-students', 'Chula Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Chulalongkorn University (CU)', true),
+  ('c-abac-students', 'ABAC Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Assumption University (ABAC)', true),
+  ('c-mu-students', 'Mahidol Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Mahidol University (MU / MUIC)', true),
+  ('c-tu-students', 'Thammasat Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Thammasat University (TU)', true),
+  ('c-ku-students', 'Kasetsart Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Kasetsart University (KU)', true),
+  ('c-kmitl-students', 'KMITL Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'KMITL', true),
+  ('c-cmu-students', 'CMU Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Chiang Mai University (CMU)', true),
+  ('c-mfu-students', 'MFU Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Mae Fah Luang University (MFU)', true),
+  ('c-utcc-students', 'UTCC Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'UTCC', true),
+  ('c-stiu-students', 'STIU Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Stamford International University (STIU)', true),
+  ('c-webster-students', 'Webster Thailand Student Community', 'campus', 'Users', 'Student discussions, campus life, events, and peer support', 'Webster University Thailand', true),
   ('c-study-lounge', 'Quiet Study & Pomodoro Pods', 'study', 'BookOpenCheck', 'Focus sprints, exam revision sessions, and shared resource links', null, true),
   ('c-career-internships', 'Career & Internship Board', 'career', 'Briefcase', 'Tech internships, resume reviews, referral links, and interview prep', null, true),
   ('c-campus-life', 'Campus Events & Student Life', 'social', 'Compass', 'Student events, club meetups, sports activities, housing, and food spots', null, true)

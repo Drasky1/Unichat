@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext';
 import Avatar from '../components/Avatar';
 import { PROJECTS, STUDENTS } from '../data/mockData';
 import { sounds } from '../utils/audio';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 function daysUntil(dateStr) {
   const diff = new Date(dateStr) - new Date();
@@ -27,8 +28,8 @@ function daysUntil(dateStr) {
 
 export default function ProjectsPage() {
   const { user, recordActivity } = useApp();
-  const [projects, setProjects] = useState(PROJECTS);
-  const [activeProjectId, setActiveProjectId] = useState(PROJECTS[0]?.id || 'p1');
+  const [projects, setProjects] = useState(isSupabaseConfigured ? [] : PROJECTS);
+  const [activeProjectId, setActiveProjectId] = useState(isSupabaseConfigured ? null : PROJECTS[0]?.id || 'p1');
   const [activeTab, setActiveTab] = useState('tasks');
   const [chatInput, setChatInput] = useState('');
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -38,6 +39,20 @@ export default function ProjectsPage() {
   const messagesEndRef = useRef(null);
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
+
+  if (!activeProject) {
+    return (
+      <div className="fade-in">
+        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+          <FolderKanban size={32} style={{ color: 'var(--accent-light)', marginBottom: 12 }} />
+          <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>No project workspaces yet</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>
+            Create a workspace to start planning tasks with your classmates.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

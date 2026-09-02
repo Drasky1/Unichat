@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { SUBJECTS } from '../data/mockData';
 import { sounds } from '../utils/audio';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 function calcCurrentGrade(components) {
   let earnedWeight = 0;
@@ -54,13 +55,24 @@ function gradeLabel(pct) {
 }
 
 export default function GradesPage() {
-  const [subjects, setSubjects] = useState(SUBJECTS);
-  const [activeSubjectId, setActiveSubjectId] = useState(SUBJECTS[0]?.id || 's1');
+  const [subjects, setSubjects] = useState(isSupabaseConfigured ? [] : SUBJECTS);
+  const [activeSubjectId, setActiveSubjectId] = useState(isSupabaseConfigured ? null : SUBJECTS[0]?.id || 's1');
   const [targetGrade, setTargetGrade] = useState(85);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSubject, setNewSubject] = useState({ name: '', code: '', credits: 3 });
 
   const currentSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+  if (!currentSubject) {
+    return (
+      <div className="fade-in">
+        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
+          <GraduationCap size={32} style={{ color: 'var(--accent-light)', marginBottom: 12 }} />
+          <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>No courses added yet</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Course tracking will appear here once real course storage is connected.</p>
+        </div>
+      </div>
+    );
+  }
   const currentPct = calcCurrentGrade(currentSubject.components);
   const currentGradeObj = gradeLabel(currentPct);
   const needed = scoreNeeded(currentSubject.components, targetGrade);
