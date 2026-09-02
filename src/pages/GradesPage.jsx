@@ -62,14 +62,53 @@ export default function GradesPage() {
   const [newSubject, setNewSubject] = useState({ name: '', code: '', credits: 3 });
 
   const currentSubject = subjects.find(s => s.id === activeSubjectId) || subjects[0];
+  const addEmptySubject = (e) => {
+    e.preventDefault();
+    if (!newSubject.name.trim()) return;
+    const subject = {
+      id: `s${Date.now()}`,
+      code: newSubject.code || 'COURSE',
+      name: newSubject.name,
+      credits: Number(newSubject.credits) || 3,
+      components: [
+        { name: 'Midterm Examination', weight: 40, scored: null, total: 100 },
+        { name: 'Coursework & Projects', weight: 20, scored: null, total: 100 },
+        { name: 'Final Comprehensive Exam', weight: 40, scored: null, total: 100 },
+      ],
+    };
+    setSubjects([subject]);
+    setActiveSubjectId(subject.id);
+    setShowAddModal(false);
+    setNewSubject({ name: '', code: '', credits: 3 });
+  };
+
   if (!currentSubject) {
     return (
       <div className="fade-in">
         <div className="card" style={{ textAlign: 'center', padding: 48 }}>
           <GraduationCap size={32} style={{ color: 'var(--accent-light)', marginBottom: 12 }} />
           <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>No courses added yet</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Course tracking will appear here once real course storage is connected.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>Add a course to start tracking grades.</p>
+          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+            <Plus size={14} /> Add Course
+          </button>
         </div>
+        {showAddModal && (
+          <div className="command-palette-backdrop" onClick={() => setShowAddModal(false)}>
+            <div className="card" style={{ width: '90%', maxWidth: 440, background: 'var(--bg-modal)' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800 }}>Add Enrolled Course</h3>
+                <button className="btn-icon-subtle" onClick={() => setShowAddModal(false)}><X size={18} /></button>
+              </div>
+              <form onSubmit={addEmptySubject} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <input className="input" required placeholder="Course title" value={newSubject.name} onChange={e => setNewSubject({ ...newSubject, name: e.target.value })} />
+                <input className="input" placeholder="Course code" value={newSubject.code} onChange={e => setNewSubject({ ...newSubject, code: e.target.value })} />
+                <input className="input" type="number" min={1} max={6} value={newSubject.credits} onChange={e => setNewSubject({ ...newSubject, credits: e.target.value })} />
+                <button type="submit" className="btn btn-primary">Add Course</button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

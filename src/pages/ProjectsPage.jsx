@@ -40,6 +40,34 @@ export default function ProjectsPage() {
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeProject, activeTab]);
+
+  const createEmptyProject = (e) => {
+    e.preventDefault();
+    if (!newProject.name.trim()) return;
+    const created = {
+      id: `p${Date.now()}`,
+      name: newProject.name,
+      code: newProject.code || 'PROJECT',
+      subject: newProject.subject || 'General Project',
+      deadline: newProject.deadline || '2026-10-01',
+      progress: 0,
+      priority: 'Medium',
+      status: 'In Progress',
+      members: [{ id: user.id, name: user.name, role: 'Owner', avatar: user.avatar }],
+      tasks: [],
+      messages: [],
+      description: newProject.name,
+    };
+    recordActivity('project_update');
+    setProjects([created]);
+    setActiveProjectId(created.id);
+    setShowNewProjectModal(false);
+    setNewProject({ name: '', code: '', subject: '', deadline: '' });
+  };
+
   if (!activeProject) {
     return (
       <div className="fade-in">
@@ -49,14 +77,30 @@ export default function ProjectsPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 18 }}>
             Create a workspace to start planning tasks with your classmates.
           </p>
+          <button className="btn btn-primary" onClick={() => setShowNewProjectModal(true)}>
+            <Plus size={14} /> Create Workspace
+          </button>
         </div>
+        {showNewProjectModal && (
+          <div className="command-palette-backdrop" onClick={() => setShowNewProjectModal(false)}>
+            <div className="card" style={{ width: '90%', maxWidth: 480, background: 'var(--bg-modal)' }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800 }}>Create New Group Workspace</h3>
+                <button className="btn-icon-subtle" onClick={() => setShowNewProjectModal(false)}><X size={18} /></button>
+              </div>
+              <form onSubmit={createEmptyProject} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <input className="input" required placeholder="Project title" value={newProject.name} onChange={e => setNewProject({ ...newProject, name: e.target.value })} />
+                <input className="input" placeholder="Course code" value={newProject.code} onChange={e => setNewProject({ ...newProject, code: e.target.value })} />
+                <input className="input" placeholder="Subject or faculty" value={newProject.subject} onChange={e => setNewProject({ ...newProject, subject: e.target.value })} />
+                <input className="input" type="date" value={newProject.deadline} onChange={e => setNewProject({ ...newProject, deadline: e.target.value })} />
+                <button type="submit" className="btn btn-primary">Create Workspace</button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeProject, activeTab]);
 
   const toggleTask = (taskId) => {
     recordActivity('project_update');
