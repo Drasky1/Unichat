@@ -76,7 +76,7 @@ export default function Layout({ children }) {
     return 'Unichat';
   };
 
-  const notifications = [
+  const notifications = isSupabaseConfigured ? [] : [
     { id: 1, title: 'New project ticket', time: '10m ago', desc: 'Priya assigned you to "Raft Consensus Simulation"', unread: true },
     { id: 2, title: 'RSU Official Notice', time: '1h ago', desc: 'Midterm timetable published in #announcements', unread: true },
     { id: 3, title: 'Grade Forecaster', time: '3h ago', desc: 'Database Systems score logged: 91/100', unread: false },
@@ -243,7 +243,7 @@ export default function Layout({ children }) {
                 aria-label="Notifications"
               >
                 <Bell size={17} />
-                <span className="notification-badge-dot" />
+                {notifications.some(n => n.unread) && <span className="notification-badge-dot" />}
               </button>
 
               {notificationsOpen && (
@@ -252,10 +252,12 @@ export default function Layout({ children }) {
                   <div className="notifications-dropdown fade-in">
                     <div className="notifications-dropdown-header">
                       <span className="dropdown-title">Notifications</span>
-                      <span className="dropdown-badge">2 new</span>
+                      {notifications.some(n => n.unread) && <span className="dropdown-badge">{notifications.filter(n => n.unread).length} new</span>}
                     </div>
                     <div className="notifications-list">
-                      {notifications.map(n => (
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '18px 16px', color: 'var(--text-muted)', fontSize: 12.5 }}>No new notifications</div>
+                      ) : notifications.map(n => (
                         <div key={n.id} className={`notification-item ${n.unread ? 'unread' : ''}`}>
                           <div className="notification-dot" />
                           <div className="notification-body">
