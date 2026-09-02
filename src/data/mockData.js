@@ -380,18 +380,6 @@ export const STUDENTS = [
 
 export const COMMUNITIES = [
   {
-    id: 'c-rsu-announcements',
-    name: 'RSU Official Announcements',
-    category: 'campus',
-    icon: 'Megaphone',
-    desc: 'Official notices on registration, exam timetables, and campus facilities',
-    online: 184,
-    members: 1420,
-    university: 'Rangsit University (RSU)',
-    verified: true,
-    unread: 2,
-  },
-  {
     id: 'c-rsu-cs',
     name: 'Computer Science & AI Hub',
     category: 'faculty',
@@ -439,10 +427,10 @@ export const COMMUNITIES = [
   },
   {
     id: 'c-campus-life',
-    name: 'Campus Life & Student Exchange',
+    name: 'Campus Events & Student Life',
     category: 'social',
     icon: 'Compass',
-    desc: 'Housing recommendations, club meetups, sports events, and food spots',
+    desc: 'Student events, club meetups, sports activities, housing, and food spots',
     online: 112,
     members: 1250,
     verified: true,
@@ -512,26 +500,6 @@ export const COMMUNITY_MESSAGES = {
       time: '10:29 AM',
       text: 'Spot on, Alex! For the Hirschberg variation, you can even reconstruct the optimal sequence in O(min(M,N)) space using divide-and-conquer. Type `@Copilot explain LCS` if anyone needs a step-by-step trace.',
       reactions: [{ emoji: '🧠', count: 9 }],
-    },
-  ],
-  'c-rsu-announcements': [
-    {
-      id: 'm101',
-      userId: 'mod1',
-      name: 'Prof. Supachai V.',
-      avatar: {
-        image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
-        initials: 'SV',
-      },
-      university: 'Rangsit University (RSU)',
-      role: 'Faculty Moderator',
-      time: '08:30 AM',
-      text: '📢 Midterm Exam schedule for Semester 1/2026 has been published on the student portal. Please review your designated examination halls and ensure your student identification cards are up to date.',
-      reactions: [
-        { emoji: '📋', count: 45 },
-        { emoji: '🙏', count: 18 },
-      ],
-      isPinned: true,
     },
   ],
   'c-study-lounge': [

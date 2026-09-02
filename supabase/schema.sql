@@ -111,8 +111,11 @@ create policy "Users can update their own profile"
 create table if not exists communities (
   id          text primary key,
   name        text not null,
+  category    text,
+  icon        text,
   description text,
-  university  text references university_domains (university),
+  university  text references university_domains (university), -- null = open to all universities
+  verified    boolean not null default false,
   created_at  timestamptz not null default now()
 );
 
@@ -124,6 +127,20 @@ create policy "Communities viewable by same-university or campus-wide"
     university is null
     or university = (select university from profiles where id = auth.uid())
   );
+
+delete from communities where id = 'c-rsu-announcements';
+
+-- Seed the official channels. Safe to re-run — updates existing rows
+-- instead of duplicating them.
+insert into communities (id, name, category, icon, description, university, verified) values
+  ('c-rsu-cs', 'Computer Science & AI Hub', 'faculty', 'Code2', 'Course discussion, homework help, hackathons, and research projects', 'Rangsit University (RSU)', true),
+  ('c-bu-design', 'Digital Design & Media', 'faculty', 'Palette', 'Portfolio critiques, Figma components, 3D renders, and creative gigs', 'Bangkok University (BU)', true),
+  ('c-study-lounge', 'Quiet Study & Pomodoro Pods', 'study', 'BookOpenCheck', 'Focus sprints, exam revision sessions, and shared resource links', null, true),
+  ('c-career-internships', 'Career & Internship Board', 'career', 'Briefcase', 'Tech internships, resume reviews, referral links, and interview prep', null, true),
+  ('c-campus-life', 'Campus Events & Student Life', 'social', 'Compass', 'Student events, club meetups, sports activities, housing, and food spots', null, true)
+on conflict (id) do update set
+  name = excluded.name, category = excluded.category, icon = excluded.icon,
+  description = excluded.description, university = excluded.university, verified = excluded.verified;
 
 -- ── 7. Messages ──────────────────────────────────────────────
 create table if not exists messages (
@@ -151,6 +168,35 @@ create policy "Messages viewable if community is viewable"
   );
 create policy "Users can post messages as themselves"
   on messages for insert to authenticated with check (auth.uid() = author_id);
+
+-- ── 7b. Message reactions ────────────────────────────────────
+create table if not exists message_reactions (
+  message_id uuid not null references messages (id) on delete cascade,
+  user_id    uuid not null references profiles (id) on delete cascade,
+  emoji      text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id, emoji)
+);
+
+alter table message_reactions enable row level security;
+
+drop policy if exists "Reactions viewable if message is viewable" on message_reactions;
+create policy "Reactions viewable if message is viewable"
+  on message_reactions for select to authenticated using (
+    exists (
+      select 1 from messages m
+      join communities c on c.id = m.community_id
+      where m.id = message_reactions.message_id
+        and (c.university is null
+             or c.university = (select university from profiles where id = auth.uid()))
+    )
+  );
+
+drop policy if exists "Users can react as themselves" on message_reactions;
+create policy "Users can react as themselves"
+  on message_reactions for all to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- ── 8. Moderation reports ────────────────────────────────────
 create table if not exists moderation_reports (
@@ -239,5 +285,12 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'moderation_reports'
   ) then
     alter publication supabase_realtime add table moderation_reports;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'message_reactions'
+  ) then
+    alter publication supabase_realtime add table message_reactions;
   end if;
 end $$;

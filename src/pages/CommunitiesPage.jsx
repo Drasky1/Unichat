@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Send,
   Paperclip,
@@ -21,29 +21,170 @@ import VoiceNoteBubble from '../components/VoiceNoteBubble';
 import { COMMUNITIES, COMMUNITY_MESSAGES, COPILOT_RESPONSES } from '../data/mockData';
 import { classifyMessage } from '../data/moderation';
 import { sounds } from '../utils/audio';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function normalizeMessageRow(row, currentUserId) {
+  const author = row.profiles || {};
+  return {
+    id: row.id,
+    userId: row.author_id,
+    name: author.name || 'Unknown',
+    avatar: { image: author.avatar_image, initials: author.avatar_initials },
+    university: author.university,
+    role: author.role === 'moderator' ? 'Moderator' : undefined,
+    time: formatTime(row.created_at),
+    createdAt: row.created_at,
+    text: row.body,
+    isOwn: row.author_id === currentUserId,
+    isPinned: row.is_pinned,
+    reactions: [],
+  };
+}
+
+function aggregateReactions(reactionRows, messageId) {
+  const rows = reactionRows.filter(r => r.message_id === messageId);
+  const counts = {};
+  rows.forEach(r => { counts[r.emoji] = (counts[r.emoji] || 0) + 1; });
+  return Object.entries(counts).map(([emoji, count]) => ({ emoji, count }));
+}
 
 export default function CommunitiesPage() {
   const { user, recordActivity, addModerationReport } = useApp();
-  
-  // Get communities for user's university on first load
-  const userCommunities = COMMUNITIES.filter(c => !c.university || c.university === user.university);
-  const defaultCommunity = userCommunities.length > 0 ? userCommunities[0] : COMMUNITIES[0];
-  
-  const [activeCommunity, setActiveCommunity] = useState(defaultCommunity);
-  const [messagesMap, setMessagesMap] = useState(COMMUNITY_MESSAGES);
+
+  const [communities, setCommunities] = useState(() => {
+    if (isSupabaseConfigured) return [];
+    return COMMUNITIES.filter(c => !c.university || c.university === user.university);
+  });
+  const [communityStats, setCommunityStats] = useState({}); // { [universityOrAll]: memberCount }
+  const [loadingCommunities, setLoadingCommunities] = useState(isSupabaseConfigured);
+  const [activeCommunity, setActiveCommunity] = useState(() => {
+    if (isSupabaseConfigured) return null;
+    const userCommunities = COMMUNITIES.filter(c => !c.university || c.university === user.university);
+    return userCommunities[0] || COMMUNITIES[0];
+  });
+
+  const [dbMessages, setDbMessages] = useState([]); // real, persisted messages for the active community
+  const [reactionRows, setReactionRows] = useState([]); // raw reaction rows for loaded messages
+  const [ephemeralByCommunity, setEphemeralByCommunity] = useState(isSupabaseConfigured ? {} : COMMUNITY_MESSAGES); // voice notes + AI Copilot replies — local-only demo features, not persisted yet
+  const [loadedMessagesFor, setLoadedMessagesFor] = useState(null); // id of the community whose messages are currently loaded
+  const loadingMessages = isSupabaseConfigured && !!activeCommunity && loadedMessagesFor !== activeCommunity.id;
+
   const [inputVal, setInputVal] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [reportedMessageIds, setReportedMessageIds] = useState(new Set());
   const [hiddenMessageIds, setHiddenMessageIds] = useState(new Set());
   const [moderationNotice, setModerationNotice] = useState('');
-  
+
   // Voice Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef(null);
 
   const messagesEndRef = useRef(null);
-  const messages = messagesMap[activeCommunity.id] || [];
+
+  // ── Load communities (real only — mock mode is set via initial state above) ──
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let cancelled = false;
+    (async () => {
+      const [{ data: communityRows }, { data: profileRows }] = await Promise.all([
+        supabase.from('communities').select('*').order('name'),
+        supabase.from('profiles').select('university, last_active_date'),
+      ]);
+      if (cancelled) return;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const stats = {};
+      (profileRows || []).forEach(p => {
+        const key = p.university;
+        if (!stats[key]) stats[key] = { members: 0, activeToday: 0 };
+        stats[key].members += 1;
+        if (p.last_active_date === today) stats[key].activeToday += 1;
+      });
+      const totalMembers = (profileRows || []).length;
+      const totalActiveToday = (profileRows || []).filter(p => p.last_active_date === today).length;
+      stats.__all__ = { members: totalMembers, activeToday: totalActiveToday };
+
+      setCommunityStats(stats);
+      setCommunities(communityRows || []);
+      setActiveCommunity((communityRows || [])[0] || null);
+      setLoadingCommunities(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Load messages + reactions for the active community, and subscribe live ──
+  useEffect(() => {
+    if (!isSupabaseConfigured || !activeCommunity) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const { data: messageRows } = await supabase
+        .from('messages')
+        .select('*, profiles(name, avatar_image, avatar_initials, university, role)')
+        .eq('community_id', activeCommunity.id)
+        .order('created_at', { ascending: true });
+      if (cancelled) return;
+
+      const ids = (messageRows || []).map(m => m.id);
+      const { data: reactions } = ids.length
+        ? await supabase.from('message_reactions').select('*').in('message_id', ids)
+        : { data: [] };
+      if (cancelled) return;
+
+      setDbMessages(messageRows || []);
+      setReactionRows(reactions || []);
+      setLoadedMessagesFor(activeCommunity.id);
+    })();
+
+    const channel = supabase
+      .channel(`messages-${activeCommunity.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `community_id=eq.${activeCommunity.id}` }, async (payload) => {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name, avatar_image, avatar_initials, university, role')
+          .eq('id', payload.new.author_id)
+          .single();
+        setDbMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, { ...payload.new, profiles: profile }]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, (payload) => {
+        const row = payload.new || payload.old;
+        setDbMessages(current => {
+          if (!current.some(m => m.id === row.message_id)) return current; // not a message in this channel
+          if (payload.eventType === 'DELETE') {
+            setReactionRows(prev => prev.filter(r => !(r.message_id === row.message_id && r.user_id === row.user_id && r.emoji === row.emoji)));
+          } else {
+            setReactionRows(prev => [...prev, row]);
+          }
+          return current;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on the stable id, not the object reference, to avoid refetch loops
+  }, [activeCommunity?.id]);
+
+  // Combine real (persisted) messages with local-only ephemeral ones (voice notes, AI Copilot replies)
+  const messages = useMemo(() => {
+    if (!activeCommunity) return [];
+    const real = isSupabaseConfigured
+      ? dbMessages.map(row => ({ ...normalizeMessageRow(row, user.id), reactions: aggregateReactions(reactionRows, row.id) }))
+      : (ephemeralByCommunity[activeCommunity.id] || []);
+    const ephemeral = isSupabaseConfigured ? (ephemeralByCommunity[activeCommunity.id] || []) : [];
+    return [...real, ...ephemeral].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  }, [dbMessages, reactionRows, ephemeralByCommunity, activeCommunity, user.id]);
+
   const pinnedMessage = messages.find(m => m.isPinned);
 
   useEffect(() => {
@@ -64,6 +205,13 @@ export default function CommunitiesPage() {
     };
   }, [isRecording]);
 
+  const addEphemeralMessage = (msg) => {
+    setEphemeralByCommunity(prev => ({
+      ...prev,
+      [activeCommunity.id]: [...(prev[activeCommunity.id] || []), msg],
+    }));
+  };
+
   const startVoiceRecording = () => {
     sounds.init();
     setRecordSeconds(0);
@@ -82,27 +230,27 @@ export default function CommunitiesPage() {
     recordActivity('community_post');
     sounds.playSend();
 
-    const newVoiceMsg = {
+    // Voice notes aren't uploaded/persisted yet — this is still a local-only
+    // demo of the interaction (no real audio is recorded or stored).
+    addEphemeralMessage({
       id: `vm${Date.now()}`,
-      userId: user.id || 'u1',
+      userId: user.id,
       name: user.name,
       avatar: user.avatar,
       university: user.university,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
       isVoice: true,
       duration: durationStr,
       isOwn: true,
       reactions: [],
-    };
-
-    const updated = [...(messagesMap[activeCommunity.id] || []), newVoiceMsg];
-    setMessagesMap({ ...messagesMap, [activeCommunity.id]: updated });
+    });
     setRecordSeconds(0);
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = inputVal.trim();
-    if (!text) return;
+    if (!text || !activeCommunity) return;
 
     const classification = classifyMessage(text);
     if (classification.action === 'hide') {
@@ -121,42 +269,49 @@ export default function CommunitiesPage() {
 
     recordActivity();
     sounds.playSend();
-
-    const newMsg = {
-      id: `m${Date.now()}`,
-      userId: user.id || 'u1',
-      name: user.name,
-      avatar: user.avatar,
-      university: user.university,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text,
-      isOwn: true,
-      reactions: [],
-    };
-
-    const updated = [...(messagesMap[activeCommunity.id] || []), newMsg];
-    setMessagesMap({ ...messagesMap, [activeCommunity.id]: updated });
     setInputVal('');
     setModerationNotice('');
 
-    // Trigger AI Copilot response if @Copilot or @AI mentioned
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({ community_id: activeCommunity.id, author_id: user.id, body: text })
+        .select('*, profiles(name, avatar_image, avatar_initials, university, role)')
+        .single();
+      if (!error && data) {
+        setDbMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
+      }
+    } else {
+      addEphemeralMessage({
+        id: `m${Date.now()}`,
+        userId: user.id || 'u1',
+        name: user.name,
+        avatar: user.avatar,
+        university: user.university,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: new Date().toISOString(),
+        text,
+        isOwn: true,
+        reactions: [],
+      });
+    }
+
+    // AI Copilot is still a scripted local demo, not a real model call, and
+    // its replies aren't persisted — flagged here rather than in the UI.
     if (text.toLowerCase().includes('@copilot') || text.toLowerCase().includes('@ai')) {
       setTimeout(() => {
         sounds.playReceive();
-        const aiMsg = {
+        addEphemeralMessage({
           id: `ai${Date.now()}`,
           userId: 'ai',
           name: 'UniCopilot (Academic AI)',
           avatar: { initials: 'AI', gradient: 'linear-gradient(135deg, #4f46e5, #0ea5e9)' },
           isAI: true,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: new Date().toISOString(),
           text: COPILOT_RESPONSES[Math.floor(Math.random() * COPILOT_RESPONSES.length)],
           reactions: [{ emoji: '🧠', count: 1 }],
-        };
-        setMessagesMap(prev => ({
-          ...prev,
-          [activeCommunity.id]: [...(prev[activeCommunity.id] || []), aiMsg],
-        }));
+        });
       }, 900);
     }
   };
@@ -168,31 +323,40 @@ export default function CommunitiesPage() {
     }
   };
 
-  const toggleReaction = (msgId, emoji) => {
+  const toggleReaction = async (msgId, emoji) => {
     recordActivity();
-    setMessagesMap(prev => {
-      const msgs = (prev[activeCommunity.id] || []).map(m => {
-        if (m.id !== msgId) return m;
-        const existing = m.reactions?.find(r => r.emoji === emoji);
-        if (existing) {
-          return {
-            ...m,
-            reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1 } : r),
-          };
-        }
-        return {
-          ...m,
-          reactions: [...(m.reactions || []), { emoji, count: 1 }],
-        };
+
+    if (!isSupabaseConfigured) {
+      setEphemeralByCommunity(prev => {
+        const msgs = (prev[activeCommunity.id] || []).map(m => {
+          if (m.id !== msgId) return m;
+          const existing = m.reactions?.find(r => r.emoji === emoji);
+          if (existing) {
+            return { ...m, reactions: m.reactions.map(r => r.emoji === emoji ? { ...r, count: r.count + 1 } : r) };
+          }
+          return { ...m, reactions: [...(m.reactions || []), { emoji, count: 1 }] };
+        });
+        return { ...prev, [activeCommunity.id]: msgs };
       });
-      return { ...prev, [activeCommunity.id]: msgs };
-    });
+      return;
+    }
+
+    const mine = reactionRows.find(r => r.message_id === msgId && r.user_id === user.id && r.emoji === emoji);
+    if (mine) {
+      setReactionRows(prev => prev.filter(r => r !== mine));
+      await supabase.from('message_reactions').delete().eq('message_id', msgId).eq('user_id', user.id).eq('emoji', emoji);
+    } else {
+      const optimistic = { message_id: msgId, user_id: user.id, emoji };
+      setReactionRows(prev => [...prev, optimistic]);
+      await supabase.from('message_reactions').insert(optimistic);
+    }
   };
 
   const reportMessage = (msg) => {
     if (reportedMessageIds.has(msg.id)) return;
     const classification = classifyMessage(msg.text || 'Voice Message');
     addModerationReport({
+      messageId: typeof msg.id === 'string' && msg.id.includes('-') ? msg.id : undefined, // only real DB messages have UUIDs
       communityName: activeCommunity.name,
       messageAuthor: msg.name,
       messageText: msg.text || 'Voice Message',
@@ -209,10 +373,24 @@ export default function CommunitiesPage() {
     }
   };
 
-  const filteredCommunities = userCommunities.filter(c =>
+  const filteredCommunities = communities.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.desc.toLowerCase().includes(searchQuery.toLowerCase())
+    (c.desc || c.description || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const statsFor = (community) => {
+    if (!isSupabaseConfigured) return { members: community.members, activeToday: community.online };
+    const key = community.university || '__all__';
+    return communityStats[key] || { members: 0, activeToday: 0 };
+  };
+
+  if (isSupabaseConfigured && (loadingCommunities || !activeCommunity)) {
+    return (
+      <div className="fade-in" style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)', fontSize: 13 }}>
+        Loading communities…
+      </div>
+    );
+  }
 
   return (
     <div className="chat-workspace fade-in">
@@ -234,7 +412,9 @@ export default function CommunitiesPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filteredCommunities.map(c => {
             const isSelected = activeCommunity.id === c.id;
-            const channelMsgs = messagesMap[c.id] || [];
+            const channelMsgs = isSupabaseConfigured
+              ? (c.id === activeCommunity.id ? messages : [])
+              : (ephemeralByCommunity[c.id] || []);
             const lastMsg = channelMsgs[channelMsgs.length - 1];
 
             return (
@@ -250,14 +430,13 @@ export default function CommunitiesPage() {
                 <div className="channel-item-details">
                   <div className="channel-item-top-row">
                     <span className="channel-item-name">{c.name}</span>
-                    <span className="channel-item-time">{lastMsg?.time || '10:00 AM'}</span>
+                    <span className="channel-item-time">{lastMsg?.time || ''}</span>
                   </div>
 
                   <div className="channel-item-sub-row">
                     <span className="channel-item-preview">
-                      {lastMsg ? (lastMsg.isVoice ? '🎤 Voice Message' : `${lastMsg.name.split(' ')[0]}: ${lastMsg.text}`) : c.desc}
+                      {lastMsg ? (lastMsg.isVoice ? '🎤 Voice Message' : `${lastMsg.name.split(' ')[0]}: ${lastMsg.text}`) : (c.desc || c.description)}
                     </span>
-                    {c.unread > 0 && <span className="channel-item-badge">{c.unread}</span>}
                   </div>
                 </div>
               </div>
@@ -280,7 +459,7 @@ export default function CommunitiesPage() {
                 {activeCommunity.verified && <CheckCircle2 size={14} style={{ color: 'var(--accent)' }} />}
               </div>
               <div className="chat-channel-desc">
-                {activeCommunity.members} members, <span style={{ color: 'var(--tg-online)', fontWeight: 600 }}>{activeCommunity.online} online</span>
+                {statsFor(activeCommunity).members} members, <span style={{ color: 'var(--tg-online)', fontWeight: 600 }}>{statsFor(activeCommunity).activeToday} active today</span>
               </div>
             </div>
           </div>
@@ -326,8 +505,20 @@ export default function CommunitiesPage() {
             </div>
           )}
 
+          {loadingMessages && (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 12.5 }}>
+              Loading messages…
+            </div>
+          )}
+
+          {!loadingMessages && messages.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 12.5 }}>
+              No messages yet — be the first to say something here.
+            </div>
+          )}
+
           {messages.filter(msg => !hiddenMessageIds.has(msg.id)).map(msg => {
-            const isOwn = msg.isOwn || msg.userId === user.id || msg.userId === 'u1';
+            const isOwn = msg.isOwn || msg.userId === user.id;
 
             return (
               <div
