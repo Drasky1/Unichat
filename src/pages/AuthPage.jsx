@@ -90,11 +90,17 @@ export default function AuthPage() {
     if (!isSupabaseConfigured) {
       const newUser = {
         ...CURRENT_USER,
+        id: `guest-${Date.now()}`,
         name: form.name || 'Alex Rivera',
         email: form.email || 'alex.riv@rsu.ac.th',
         major: form.major || availableMajors[0] || 'Computer Science & AI',
         university: normalizedUniversity,
         year: form.year,
+        gpa: 0,
+        streak: 0,
+        streakGoal: 30,
+        restoresUsed: 0,
+        restoreMonth: null,
         avatar: AVATAR_OPTIONS[selectedAvatarIdx] || CURRENT_USER.avatar,
       };
       login(newUser);

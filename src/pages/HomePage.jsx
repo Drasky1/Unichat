@@ -43,7 +43,7 @@ export default function HomePage() {
             <GraduationCap size={22} />
           </div>
           <div className="metric-content">
-            <span className="metric-value">{user.gpa || '3.78'}</span>
+            <span className="metric-value">{user.gpa ?? 0}</span>
             <span className="metric-label">Cumulative GPA</span>
           </div>
           <span className="badge badge-emerald" style={{ marginLeft: 'auto', fontSize: '10px' }}>
@@ -76,7 +76,7 @@ export default function HomePage() {
             <Flame size={22} />
           </div>
           <div className="metric-content">
-            <span className="metric-value">{user.streak || 14}</span>
+            <span className="metric-value">{user.streak ?? 0}</span>
             <span className="metric-label">Day Study Streak</span>
           </div>
         </div>

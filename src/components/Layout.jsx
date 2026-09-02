@@ -138,16 +138,16 @@ export default function Layout({ children }) {
             <div className="streak-icon-wrap">
               <Flame size={14} className="streak-flame" />
             </div>
-            <div className="streak-title">{user.streak || 14} Day Study Streak</div>
+            <div className="streak-title">{user.streak ?? 0} Day Study Streak</div>
           </div>
           <div className="streak-progress-bar">
             <div
               className="streak-progress-fill"
-              style={{ width: `${Math.min(100, ((user.streak || 14) / (user.streakGoal || 30)) * 100)}%` }}
+              style={{ width: `${Math.min(100, (((user.streak ?? 0) / (user.streakGoal ?? 30)) * 100) || 0)}%` }}
             />
           </div>
           <div className="streak-footer-text">
-            <span>Goal: {user.streakGoal || 30} days</span>
+            <span>Goal: {user.streakGoal ?? 30} days</span>
             <span className="streak-freeze-tag">Active</span>
           </div>
         </div>

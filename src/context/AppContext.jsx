@@ -11,6 +11,38 @@ const MEANINGFUL_ACTIONS = new Set([
   'moderation_review',
 ]);
 
+function normalizeProfile(profile = {}) {
+  return {
+    id: profile.id ?? 'guest-user',
+    role: profile.role ?? 'student',
+    name: profile.name ?? 'New Student',
+    username: profile.username ?? 'newstudent',
+    email: profile.email ?? '',
+    avatar: profile.avatar ?? {
+      initials: 'NS',
+      gradient: 'from-sky-500 to-indigo-500',
+    },
+    major: profile.major ?? '',
+    faculty: profile.faculty ?? '',
+    university: profile.university ?? 'Rangsit University (RSU)',
+    year: profile.year ?? '1st Year',
+    gpa: profile.gpa ?? 0,
+    studentId: profile.studentId ?? profile.student_id ?? '',
+    bio: profile.bio ?? '',
+    skills: profile.skills ?? [],
+    interests: profile.interests ?? [],
+    streak: profile.streak ?? 0,
+    streakGoal: profile.streakGoal ?? profile.streak_goal ?? 30,
+    restoresUsed: profile.restoresUsed ?? profile.restores_used ?? 0,
+    restoreMonth: profile.restoreMonth ?? profile.restore_month ?? null,
+    verified: Boolean(profile.verified),
+    followers: profile.followers ?? 0,
+    following: profile.following ?? 0,
+    enrolledCourses: profile.enrolledCourses ?? profile.enrolled_courses ?? [],
+    ...profile,
+  };
+}
+
 function normalizeReport(row) {
   return {
     id: row.id,
@@ -34,7 +66,7 @@ function getInitialTheme() {
 }
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(CURRENT_USER);
+  const [user, setUser] = useState(() => normalizeProfile(CURRENT_USER));
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
   const [theme, setTheme] = useState(getInitialTheme);
@@ -68,7 +100,7 @@ export function AppProvider({ children }) {
 
       if (cancelled) return;
       if (profile) {
-        setUser(profile);
+        setUser(normalizeProfile(profile));
         setIsLoggedIn(true);
       }
       setAuthLoading(false);
@@ -87,7 +119,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const login = (userData) => {
-    setUser(userData);
+    setUser(normalizeProfile(userData));
     setIsLoggedIn(true);
   };
 

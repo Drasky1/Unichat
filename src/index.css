@@ -1597,6 +1597,7 @@ body {
   align-items: center;
   gap: 12px;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .metric-icon-wrap {
@@ -1609,16 +1610,30 @@ body {
   flex-shrink: 0;
 }
 
+.metric-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
 .metric-value {
-  font-size: 19px;
+  font-size: clamp(15px, 1.7vw, 19px);
   font-weight: 800;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-label {
   font-size: 11px;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero-pulse-card {
