@@ -63,8 +63,12 @@ export default function AuthPage() {
       .eq('id', data.user.id)
       .single();
 
-    if (profileError) {
-      setError('Signed in, but could not load your profile. Please try again.');
+    if (profileError || !profile) {
+      // User exists in auth, but profile row is missing.
+      // Pre-fill the register form with their email and switch to it.
+      setForm(prev => ({ ...prev, email: loginForm.email.trim() }));
+      setTab('register');
+      setError('Your account exists but needs profile details. Please complete setup.');
       return;
     }
 
