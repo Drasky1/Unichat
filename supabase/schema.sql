@@ -39,6 +39,8 @@ create table if not exists profiles (
   year             text,
   student_id       text,
   bio              text,
+  skills           text[] not null default '{}',
+  status_text      text,
   avatar_image     text,
   avatar_initials  text,
   avatar_gradient  text,
@@ -195,6 +197,32 @@ create policy "Moderators can resolve reports for their university"
         and p.university = moderation_reports.university
     )
   );
+
+-- ── 8b. Friendships / connections (Find Friends "Connect" button) ──
+create table if not exists friendships (
+  follower_id uuid not null references profiles (id) on delete cascade,
+  followee_id uuid not null references profiles (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (follower_id, followee_id),
+  check (follower_id <> followee_id)
+);
+
+alter table friendships enable row level security;
+
+drop policy if exists "Users can view their own outgoing connections" on friendships;
+create policy "Users can view their own outgoing connections"
+  on friendships for select to authenticated
+  using (follower_id = auth.uid());
+
+drop policy if exists "Users can create their own connections" on friendships;
+create policy "Users can create their own connections"
+  on friendships for insert to authenticated
+  with check (follower_id = auth.uid());
+
+drop policy if exists "Users can remove their own connections" on friendships;
+create policy "Users can remove their own connections"
+  on friendships for delete to authenticated
+  using (follower_id = auth.uid());
 
 -- ── 9. Realtime subscriptions ────────────────────────────────
 do $$

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   Users2,
@@ -16,10 +16,30 @@ import {
 import { useApp } from '../context/AppContext';
 import Avatar from '../components/Avatar';
 import { STUDENTS, UNIVERSITIES, UNIVERSITY_MAJOR_MAP } from '../data/mockData';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+
+function normalizeProfile(row, following) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    id: row.id,
+    name: row.name,
+    username: row.username || row.name?.toLowerCase().replace(/\s+/g, ''),
+    major: row.major,
+    university: row.university,
+    year: row.year,
+    bio: row.bio,
+    skills: row.skills || [],
+    statusText: row.status_text,
+    avatar: { image: row.avatar_image, initials: row.avatar_initials },
+    online: row.last_active_date === today,
+    following,
+  };
+}
 
 export default function FindFriendsPage() {
-  const { recordActivity } = useApp();
-  const [students, setStudents] = useState(STUDENTS);
+  const { user, recordActivity } = useApp();
+  const [students, setStudents] = useState(isSupabaseConfigured ? [] : STUDENTS);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
   const [search, setSearch] = useState('');
   const [filterUniversity, setFilterUniversity] = useState('All Universities');
   const [filterMajor, setFilterMajor] = useState('All Majors');
@@ -27,15 +47,44 @@ export default function FindFriendsPage() {
   const [dmInput, setDmInput] = useState('');
   const [dmSent, setDmSent] = useState(false);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let cancelled = false;
+    (async () => {
+      const [{ data: profiles }, { data: connections }] = await Promise.all([
+        supabase.from('profiles').select('*').neq('id', user.id),
+        supabase.from('friendships').select('followee_id').eq('follower_id', user.id),
+      ]);
+      if (cancelled) return;
+      const followingIds = new Set((connections || []).map(c => c.followee_id));
+      setStudents((profiles || []).map(row => normalizeProfile(row, followingIds.has(row.id))));
+      setLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [user.id]);
+
   const availableMajors = filterUniversity === 'All Universities'
     ? ['All Majors', ...new Set(Object.values(UNIVERSITY_MAJOR_MAP).flat())]
     : ['All Majors', ...(UNIVERSITY_MAJOR_MAP[filterUniversity] || [])];
 
-  const toggleFollow = (id) => {
+  const toggleFollow = async (id) => {
     recordActivity('friend_connect');
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, following: !s.following } : s));
+    const target = students.find(s => s.id === id);
+    const nowFollowing = !target?.following;
+
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, following: nowFollowing } : s));
     if (selectedStudent?.id === id) {
-      setSelectedStudent(prev => ({ ...prev, following: !prev.following }));
+      setSelectedStudent(prev => ({ ...prev, following: nowFollowing }));
+    }
+
+    if (!isSupabaseConfigured) return;
+
+    if (nowFollowing) {
+      await supabase.from('friendships').insert({ follower_id: user.id, followee_id: id });
+    } else {
+      await supabase.from('friendships').delete().eq('follower_id', user.id).eq('followee_id', id);
     }
   };
 
@@ -68,19 +117,19 @@ export default function FindFriendsPage() {
       <div className="card mb-16" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>Student Directory</div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>Discover</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 2 }}>
               Discover research collaborators, project teammates, and campus peers
             </div>
           </div>
           <span className="badge badge-emerald">
-            ● {students.filter(s => s.online).length} online on campus
+            ● {students.filter(s => s.online).length} active today
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
           <div className="input-group">
-            <label className="input-label">Search Directory</label>
+            <label className="input-label">Search</label>
             <div style={{ position: 'relative' }}>
               <input
                 className="input"
@@ -121,7 +170,18 @@ export default function FindFriendsPage() {
         </div>
       </div>
 
-      {/* Directory Grid */}
+      {/* Discover Grid */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
+          Loading students…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
+          {students.length === 0
+            ? "No other students have signed up yet — once more people join, they&apos;ll show up here."
+            : 'No students match your search or filters.'}
+        </div>
+      ) : (
       <div className="directory-grid">
         {filtered.map(student => (
           <div
@@ -172,6 +232,7 @@ export default function FindFriendsPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Selected Student Modal / Dossier */}
       {selectedStudent && (
@@ -233,6 +294,11 @@ export default function FindFriendsPage() {
                   <button className="btn btn-primary btn-sm" onClick={sendDM} disabled={!dmInput.trim()}>
                     <Send size={13} /> Send
                   </button>
+                </div>
+              )}
+              {!dmSent && (
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Direct messages aren&apos;t saved yet — this feature is coming soon.
                 </div>
               )}
             </div>
