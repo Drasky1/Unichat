@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -23,6 +23,7 @@ import { useApp } from '../context/AppContext';
 import Avatar from './Avatar';
 import UnichatLogo from './UnichatLogo';
 import CommandPalette from './CommandPalette';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 const NAV_ITEMS = [
   { to: '/',            icon: LayoutDashboard, label: 'Campus Feed' },
@@ -38,9 +39,21 @@ export default function Layout({ children }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeUserCount, setActiveUserCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const isDarkMode = theme === 'dark';
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('last_active_date', today)
+      .then(({ count }) => setActiveUserCount(count || 0));
+  }, []);
 
   const navigation = user.role === 'moderator'
     ? [...NAV_ITEMS, { to: '/moderation', icon: ShieldCheck, label: 'Moderation Queue' }]
@@ -219,7 +232,7 @@ export default function Layout({ children }) {
             {/* Live Campus Presence */}
             <div className="live-campus-pill">
               <span className="live-dot-pulse" />
-              <span className="live-text">412 online</span>
+              <span className="live-text">{isSupabaseConfigured ? activeUserCount : 0} active today</span>
             </div>
 
             {/* Notifications Popover */}
